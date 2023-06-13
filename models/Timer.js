@@ -56,6 +56,22 @@ class Timer {
     }
   }
 
+  // make a rewind function that rwinds the timer by 5 seconds
+  rewindTimer() {
+    if (this.timerRunning === TIMERSTATE.RUNNING) {
+      this.startTime -= 5000;
+    }
+  }
+
+// make a forward function that forwards the timer by 5 seconds
+  forwardTimer() {
+    if (this.timerRunning === TIMERSTATE.RUNNING) {
+      this.startTime += 5000;
+    }
+  }
+
+
+
   resetTimer() {
     this.hours = 0;
     this.minutes = 0;

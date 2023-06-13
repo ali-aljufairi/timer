@@ -76,6 +76,7 @@ module.exports = (http, roomManager) => {
       }
     });
 
+
     socket.on('start timer', (timerId) => {
       logExceptInTest(`User ${socket.id} started timer ${timerId}`);
       rm.timerList[timerId].startTimer();
@@ -87,6 +88,19 @@ module.exports = (http, roomManager) => {
       rm.timerList[timerId].stopTimer();
       io.to(timerId).emit('timer stopped');
     });
+
+    socket.on('rewind timer', (timerId) => {
+      logExceptInTest(`User ${socket.id} rewind timer ${timerId}`);
+      rm.timerList[timerId].rewindTimer();
+      io.to(timerId).emit('timer stopped');
+    });
+
+   socket.on('fast forward timer', (timerId) => {
+      logExceptInTest(`User ${socket.id} fast forward timer ${timerId}`);
+      rm.timerList[timerId].fastForwardTimer();
+      io.to(timerId).emit('timer stopped');
+    });
+
 
     socket.on('reset timer', (timerId) => {
       logExceptInTest(`User ${socket.id} reset timer ${timerId}`);
