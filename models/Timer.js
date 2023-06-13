@@ -54,6 +54,9 @@ class Timer {
     if (this.updateCallback) {
       this.updateCallback(this);
     }
+    if (this.hours === 0 && this.minutes >= 5) {
+      this.stopTimer();
+    }
   }
 
   // make a rewind function that rwinds the timer by 5 seconds
