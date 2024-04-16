@@ -95,9 +95,9 @@ module.exports = (http, roomManager) => {
       io.to(timerId).emit('timer stopped');
     });
 
-   socket.on('fast forward timer', (timerId) => {
+   socket.on('fastforward timer', (timerId) => {
       logExceptInTest(`User ${socket.id} fast forward timer ${timerId}`);
-      rm.timerList[timerId].fastForwardTimer();
+      rm.timerList[timerId].forwardTimer();
       io.to(timerId).emit('timer stopped');
     });
 
