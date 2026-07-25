@@ -1,6 +1,7 @@
 'use strict';
 
-const ROOM_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const ROOM_PATTERN = /^[a-f0-9]{32}$/;
+const ROOM_HINT = 'Paste the private code from a shared room link.';
 const $ = (id) => document.getElementById(id);
 const welcomePanel = $('welcome-panel');
 const timerPanel = $('timer-panel');
@@ -22,13 +23,8 @@ const showToast = (message, isError = false) => {
   toastTimer = setTimeout(() => { toast.textContent = ''; }, 2600);
 };
 
-const normalizeRoom = (value) => value.trim().toLowerCase().replace(/\s+/g, '-');
-const randomRoom = () => {
-  const words = ['bright', 'calm', 'cosmic', 'swift', 'quiet', 'lunar'];
-  const word = words[Math.floor(Math.random() * words.length)];
-  const suffix = crypto.getRandomValues(new Uint32Array(1))[0].toString(36).slice(0, 5);
-  return `${word}-${suffix}`;
-};
+const normalizeRoom = (value) => value.trim().toLowerCase();
+const randomRoom = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
 const updateConnection = (status) => {
   connection.classList.toggle('online', status === 'Connected');
@@ -48,15 +44,20 @@ const openRoom = (requestedRoom) => {
   const normalized = normalizeRoom(requestedRoom);
   if (!ROOM_PATTERN.test(normalized)) {
     roomInput.classList.add('invalid');
+    roomInput.setAttribute('aria-invalid', 'true');
+    $('room-hint').textContent = 'Enter the complete 32-character room access code.';
     roomInput.focus();
     return;
   }
   roomInput.classList.remove('invalid');
+  roomInput.removeAttribute('aria-invalid');
+  $('room-hint').textContent = ROOM_HINT;
   roomId = normalized;
   const url = new URL(window.location.href);
   url.searchParams.set('room', roomId);
   history.replaceState({}, '', url);
-  $('room-name').textContent = roomId;
+  $('room-name').textContent = `${roomId.slice(0, 10)}…${roomId.slice(-6)}`;
+  $('room-name').title = roomId;
   welcomePanel.hidden = true;
   timerPanel.hidden = false;
   socket.emit('set up', roomId);
@@ -67,7 +68,11 @@ $('new-room-button').addEventListener('click', () => openRoom(randomRoom()));
 roomInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') openRoom(roomInput.value);
 });
-roomInput.addEventListener('input', () => roomInput.classList.remove('invalid'));
+roomInput.addEventListener('input', () => {
+  roomInput.classList.remove('invalid');
+  roomInput.removeAttribute('aria-invalid');
+  $('room-hint').textContent = ROOM_HINT;
+});
 
 startButton.addEventListener('click', () => {
   if (!roomId) return;

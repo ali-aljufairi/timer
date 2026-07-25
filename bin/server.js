@@ -4,10 +4,10 @@ const express = require('express');
 const path = require('path');
 const RoomManager = require('../models/RoomManager');
 
-const server = (port) => {
+const server = (port, options = {}) => {
   const app = express();
   const http = require('http').Server(app);
-  const rm = new RoomManager();
+  const rm = new RoomManager(options.roomManager);
 
   app.disable('x-powered-by');
   app.use('/timer', require('../routes/timer')(rm));

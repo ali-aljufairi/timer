@@ -38,9 +38,30 @@ test('forward and rewind work while paused', () => {
   assert.equal(timer.time.seconds, '00');
 });
 
-test('room manager creates and finds named timers', () => {
+test('room manager creates and finds capability timers', () => {
   const rooms = new RoomManager();
-  assert.equal(rooms.timerExists('demo'), false);
-  assert.equal(rooms.createTimer('demo'), 'demo');
-  assert.equal(rooms.timerExists('demo'), true);
+  const roomId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  assert.equal(rooms.timerExists(roomId), false);
+  assert.equal(rooms.createTimer(roomId), roomId);
+  assert.equal(rooms.timerExists(roomId), true);
+});
+
+test('room manager enforces active-room capacity', () => {
+  const rooms = new RoomManager({ maxTimers: 1 });
+  assert.equal(rooms.createTimer('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  assert.equal(rooms.createTimer('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'), null);
+});
+
+test('client removal cleans every tracked room defensively', () => {
+  const rooms = new RoomManager({ gcDelay: 10 });
+  const first = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const second = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  rooms.createTimer(first);
+  rooms.createTimer(second);
+  rooms.addClient('client');
+  rooms.addClientToTimer(first, 'client');
+  rooms.addClientToTimer(second, 'client');
+  assert.deepEqual(rooms.removeClient('client').sort(), [first, second].sort());
+  assert.equal(rooms.timerList[first].clients.length, 0);
+  assert.equal(rooms.timerList[second].clients.length, 0);
 });

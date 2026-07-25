@@ -4,6 +4,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 FROM node:22-alpine
+LABEL org.opencontainers.image.source="https://github.com/ali-aljufairi/timer" \
+      org.opencontainers.image.title="Sync Timer" \
+      org.opencontainers.image.version="1.0.0"
 ENV NODE_ENV=production PORT=3000
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules

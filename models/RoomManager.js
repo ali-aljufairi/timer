@@ -2,20 +2,22 @@
 
 const { logExceptInTest } = require('../helpers');
 const Timer = require('./Timer');
-const uniqid = require('uniqid');
+const crypto = require('crypto');
 
-const timerGCDelay = 5 * 60 * 1000; // 5 minutes 
+const DEFAULT_GC_DELAY = 5 * 60 * 1000;
+const DEFAULT_MAX_TIMERS = 250;
 
 class RoomManager {
-  constructor() {
+  constructor({
+    maxTimers = Number.parseInt(process.env.MAX_ACTIVE_ROOMS || DEFAULT_MAX_TIMERS, 10),
+    gcDelay = DEFAULT_GC_DELAY,
+  } = {}) {
     this.clientList = [];
-    this.timerList = {};
-    this.timerGCList = {};
+    this.timerList = Object.create(null);
+    this.timerGCList = Object.create(null);
     this.updateCallback = null;
-
-    this.deleteTimer = this.deleteTimer.bind(this);
-    this.removeClientFromTimer = this.removeClientFromTimer.bind(this);
-    this.removeClientFromAnyTimer = this.removeClientFromAnyTimer.bind(this);
+    this.maxTimers = Number.isInteger(maxTimers) && maxTimers > 0 ? maxTimers : DEFAULT_MAX_TIMERS;
+    this.gcDelay = gcDelay;
   }
 
   clientExists(clientId) {
@@ -23,131 +25,63 @@ class RoomManager {
   }
 
   timerExists(timerId) {
-    return this.timerList.hasOwnProperty(timerId);
+    return Object.prototype.hasOwnProperty.call(this.timerList, timerId);
   }
 
-  createTimer(timerId = uniqid.time()) {
-    const timer = new Timer(this.updateCallback, timerId);
-    this.timerList[timerId] = timer;
+  createTimer(timerId = crypto.randomBytes(16).toString('hex')) {
+    if (this.timerExists(timerId)) return timerId;
+    if (Object.keys(this.timerList).length >= this.maxTimers) return null;
+    this.timerList[timerId] = new Timer(this.updateCallback, timerId);
     logExceptInTest(`New Timer ${timerId} created`);
     return timerId;
-  };
+  }
 
   deleteTimer(timerId) {
-    if (this.timerExists(timerId)) {
-      delete this.timerList[timerId];
-      logExceptInTest(`Timer ${timerId} deleted`);
-      return true;
-    } else {
-      logExceptInTest(`deleteTimer: Timer ${timerId} not found`);
-      return false;
-    }
-  };
+    if (!this.timerExists(timerId)) return false;
+    this.timerList[timerId].stopTimer();
+    delete this.timerList[timerId];
+    if (this.timerGCList[timerId]) clearTimeout(this.timerGCList[timerId]);
+    delete this.timerGCList[timerId];
+    logExceptInTest(`Timer ${timerId} deleted`);
+    return true;
+  }
 
   addClient(clientId) {
-    if (!this.clientExists(clientId)) {
-      this.clientList.push(clientId);
-      logExceptInTest(`User ${clientId} added`);
-      return true;
-    } else {
-      logExceptInTest(`addClient: User ${clientId} already added`);
-      return false;
-    }
-  };
-
-  removeClient(clientId) {
-    this.removeClientFromAnyTimer(clientId);
-
-    if (this.clientExists(clientId)) {
-      this.clientList.splice(this.clientList.indexOf(clientId), 1);
-      logExceptInTest(`User ${clientId} removed`);
-      return true;
-    } else {
-      logExceptInTest(`removeClient: User ${clientId} not found`);
-      return false;
-    }
-  };
+    if (this.clientExists(clientId)) return false;
+    this.clientList.push(clientId);
+    return true;
+  }
 
   addClientToTimer(timerId, clientId) {
-    if (!this.timerExists(timerId)) {
-      logExceptInTest(`addClientToTimer: Timer ${timerId} not found.`);
-      return false;
+    if (!this.timerExists(timerId) || !this.clientExists(clientId)) return false;
+    const added = this.timerList[timerId].addClient(clientId);
+    if (this.timerGCList[timerId]) {
+      clearTimeout(this.timerGCList[timerId]);
+      delete this.timerGCList[timerId];
     }
-
-    else if (!this.clientExists(clientId)) {
-      logExceptInTest(`addClientToTimer: User ${clientId} not found.`);
-      return false;
-    }
-
-    else {
-      const result = this.timerList[timerId].addClient(clientId);
-      if (result) {
-        logExceptInTest(`User ${clientId} added to Timer ${timerId}`);
-
-        if (this.timerGCList[timerId]) {
-          clearInterval(this.timerGCList[timerId]);
-          this.timerGCList[timerId] = null;
-          logExceptInTest(`Unmark Timer ${timerId} from deletion`);
-        }
-
-        return true;
-      } else {
-        logExceptInTest(`addClientToTimer: User ${clientId} already added to Timer ${timerId}`);
-        return true;        
-      }
-    }
-  };
+    return added;
+  }
 
   removeClientFromTimer(timerId, clientId) {
-    if (!this.timerExists(timerId)) {
-      logExceptInTest(`removeClientFromTimer: Timer ${timerId} not found.`);
-      return false;
+    if (!this.timerExists(timerId)) return false;
+    const removed = this.timerList[timerId].removeClient(clientId);
+    if (removed && this.timerList[timerId].clients.length === 0) {
+      this.timerGCList[timerId] = setTimeout(() => this.deleteTimer(timerId), this.gcDelay);
+      this.timerGCList[timerId].unref?.();
     }
+    return removed;
+  }
 
-    else if (!this.clientExists(clientId)) {
-      logExceptInTest(`removeClientFromTimer: User ${clientId} not found.`);
-      return false;
-    }
+  timerIdsForClient(clientId) {
+    return Object.keys(this.timerList).filter((timerId) => this.timerList[timerId].clients.includes(clientId));
+  }
 
-    else {
-      const result = this.timerList[timerId].removeClient(clientId);
-
-      if (result) {
-        logExceptInTest(`User ${clientId} removed from Timer ${timerId}`);
-
-        if (this.timerList[timerId].clients.length === 0) {
-          this.timerGCList[timerId] = setTimeout(() => {
-            this.deleteTimer(timerId);
-            delete this.timerGCList[timerId];
-          }, timerGCDelay);
-          this.timerGCList[timerId].unref?.();
-          logExceptInTest(`Mark unused Timer ${timerId} for deletion`);
-        }
-        
-        return true;
-      } else {
-        logExceptInTest(`removeClientFromTimer: User ${clientId} not in Timer ${timerId}`);
-        return false;        
-      }
-    }
-  };
-
-  removeClientFromAnyTimer(clientId) {
-    if (!this.clientExists(clientId)) {
-      logExceptInTest(`removeClientFromAnyTimer: User ${clientId} not found.`);
-      return false;
-    }
-
-    else {
-      for (var timerId in this.timerList) {
-        if (this.timerList[timerId].clients.includes(clientId)) {
-          return this.removeClientFromTimer(timerId, clientId);
-        }
-      }
-    }
-
-    logExceptInTest(`removeClientFromAnyTimer: Orphaned User ${clientId} found.`);
-    return false;
+  removeClient(clientId) {
+    const timerIds = this.timerIdsForClient(clientId);
+    for (const timerId of timerIds) this.removeClientFromTimer(timerId, clientId);
+    const index = this.clientList.indexOf(clientId);
+    if (index >= 0) this.clientList.splice(index, 1);
+    return timerIds;
   }
 }
 

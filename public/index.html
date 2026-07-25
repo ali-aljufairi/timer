@@ -6,9 +6,6 @@
   <meta name="description" content="A fast, private shared timer that stays synchronized across devices.">
   <meta name="theme-color" content="#101217">
   <title>Sync Timer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <script src="/socket.io/socket.io.js" defer></script>
   <script src="/app.js" defer></script>
@@ -32,15 +29,15 @@
       <p class="lede">Start a shared room and keep everyone perfectly in sync—across phones, laptops, and displays.</p>
 
       <div class="join-card">
-        <label for="room-input">Room name</label>
+        <label for="room-input">Room access code</label>
         <div class="join-row">
-          <input id="room-input" type="text" maxlength="64" autocomplete="off" spellcheck="false" placeholder="e.g. team-standup" aria-describedby="room-hint">
+          <input id="room-input" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="32-character access code" aria-describedby="room-hint">
           <button class="button primary" id="join-button" type="button">Join room <span aria-hidden="true">→</span></button>
         </div>
-        <p id="room-hint">Letters, numbers, dashes, and underscores.</p>
+        <p id="room-hint" aria-live="polite">Paste the private code from a shared room link.</p>
         <div class="divider"><span>or</span></div>
         <button class="button secondary wide" id="new-room-button" type="button">
-          <span class="spark" aria-hidden="true">✦</span> Create a private room
+          <span class="spark" aria-hidden="true">✦</span> Create a secure room
         </button>
       </div>
     </section>
@@ -57,7 +54,7 @@
       </div>
 
       <div class="clock-card">
-        <div class="clock" aria-live="polite" aria-label="Elapsed time">
+        <div class="clock" aria-label="Elapsed time">
           <span id="hours">00</span><b>:</b><span id="minutes">00</span><b>:</b><span id="seconds">00</span>
         </div>
         <div class="clock-labels" aria-hidden="true"><span>HOURS</span><span>MINUTES</span><span>SECONDS</span></div>
