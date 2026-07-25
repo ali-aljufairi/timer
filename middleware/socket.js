@@ -2,115 +2,80 @@
 
 const { logExceptInTest } = require('../helpers');
 const TIMERSTATE = require('../helpers/timerStates');
+const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 module.exports = (http, roomManager) => {
   const io = require('socket.io')(http, {
-    cors: {
-      // change this to your front-end domain
-      origin: "*"
-    },
-    transports: ['websocket']
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 16 * 1024,
   });
   const rm = roomManager;
-  const broadcastUpdate = (timer) => io.to(timer.id).emit('update timer', timer.time);
+  rm.updateCallback = (timer) => io.to(timer.id).emit('update timer', timer.time);
 
-  rm.updateCallback = broadcastUpdate.bind(this);
+  const validRoom = (timerId) => typeof timerId === 'string' && ROOM_ID_PATTERN.test(timerId);
+  const withTimer = (socket, timerId, action) => {
+    if (!validRoom(timerId) || !rm.timerExists(timerId)) {
+      socket.emit('timer error', { message: 'Invalid or unavailable room.' });
+      return;
+    }
+    action(rm.timerList[timerId]);
+  };
 
-  // Socket Logic
   io.on('connection', (socket) => {
     logExceptInTest(`User ${socket.id} connected`);
 
-    // Events
-
-    socket.on('set up', (timerId) => {
-
-      // A failsafe to make sure a valid Timer Id is obtained at this point.
-      // Being passed an invalid timerId (undefined, null) should not happen.
-      if (!timerId) {
-        throw "No timer id was sent to the server.";
+    socket.on('set up', (rawTimerId) => {
+      const timerId = typeof rawTimerId === 'string' ? rawTimerId.trim().toLowerCase() : '';
+      if (!validRoom(timerId)) {
+        socket.emit('timer error', { message: 'Room names use letters, numbers, dashes, and underscores.' });
+        return;
       }
 
-      const tId = timerId;
-
-      // if the timer does not exists
-      if (!(rm.timerExists(timerId))) {
-        rm.createTimer(timerId);
-      }
+      if (!rm.timerExists(timerId)) rm.createTimer(timerId);
 
       try {
-        socket.join(tId);
+        socket.join(timerId);
         rm.addClient(socket.id);
-        rm.addClientToTimer(tId, socket.id);
-        logExceptInTest(`User ${socket.id} registered`);
-        io.to(tId).emit('new user joining', { clientId: socket.id });
-        socket.emit('done set up', { timerId: tId });
-        // send the current time to the user as part of initial setup.
-        socket.emit('update timer', rm.timerList[tId].time);
-
-        switch (rm.timerList[tId].timerRunning) {
-
-          case TIMERSTATE.RUNNING:
-            io.to(tId).emit('timer started');
-            break;
-
-          case TIMERSTATE.STOPPED:
-          case TIMERSTATE.SUSPENDED:
-            io.to(tId).emit('timer stopped');
-            break;
-
-          default:
-            io.to(tId).emit('timer error');
-        }
-      } catch (error) {
-        io.to(tId).emit('timer error');
-      }
-    });
-
-    socket.on('get time', (timerId) => {
-      if (rm.timerExists(timerId)) {
-        logExceptInTest(`User ${socket.id} is querying Timer ${timerId}`);
+        rm.addClientToTimer(timerId, socket.id);
+        socket.data.timerId = timerId;
+        io.to(timerId).emit('participant count', { count: rm.timerList[timerId].clients.length });
+        socket.emit('done set up', { timerId });
         socket.emit('update timer', rm.timerList[timerId].time);
-      } else {
-        logExceptInTest(`User ${socket.id} - Timer ${timerId} does not exist`);
-        socket.emit('update timer', null);
+        socket.emit(rm.timerList[timerId].timerRunning === TIMERSTATE.RUNNING ? 'timer started' : 'timer stopped');
+      } catch (error) {
+        logExceptInTest(`Setup error for ${socket.id}: ${error.message}`);
+        socket.emit('timer error', { message: 'Could not join the room.' });
       }
     });
 
-
-    socket.on('start timer', (timerId) => {
-      logExceptInTest(`User ${socket.id} started timer ${timerId}`);
-      rm.timerList[timerId].startTimer();
+    socket.on('get time', (timerId) => withTimer(socket, timerId, (timer) => socket.emit('update timer', timer.time)));
+    socket.on('start timer', (timerId) => withTimer(socket, timerId, (timer) => {
+      timer.startTimer();
       io.to(timerId).emit('timer started');
-    });
-
-    socket.on('stop timer', (timerId) => {
-      logExceptInTest(`User ${socket.id} stopped timer ${timerId}`);
-      rm.timerList[timerId].stopTimer();
+    }));
+    socket.on('stop timer', (timerId) => withTimer(socket, timerId, (timer) => {
+      timer.stopTimer();
       io.to(timerId).emit('timer stopped');
-    });
-
-    socket.on('rewind timer', (timerId) => {
-      logExceptInTest(`User ${socket.id} rewind timer ${timerId}`);
-      rm.timerList[timerId].rewindTimer();
+    }));
+    socket.on('rewind timer', (timerId) => withTimer(socket, timerId, (timer) => {
+      timer.rewindTimer();
+      io.to(timerId).emit('update timer', timer.time);
+    }));
+    socket.on('fastforward timer', (timerId) => withTimer(socket, timerId, (timer) => {
+      timer.forwardTimer();
+      io.to(timerId).emit('update timer', timer.time);
+    }));
+    socket.on('reset timer', (timerId) => withTimer(socket, timerId, (timer) => {
+      timer.resetTimer();
       io.to(timerId).emit('timer stopped');
-    });
-
-   socket.on('fastforward timer', (timerId) => {
-      logExceptInTest(`User ${socket.id} fast forward timer ${timerId}`);
-      rm.timerList[timerId].forwardTimer();
-      io.to(timerId).emit('timer stopped');
-    });
-
-
-    socket.on('reset timer', (timerId) => {
-      logExceptInTest(`User ${socket.id} reset timer ${timerId}`);
-      rm.timerList[timerId].resetTimer();
-      io.to(timerId).emit('timer stopped');
-    });
+    }));
 
     socket.on('disconnect', () => {
-      logExceptInTest(`User ${socket.id} disconnected`);
+      const timerId = socket.data.timerId;
       rm.removeClient(socket.id);
+      if (timerId && rm.timerExists(timerId)) {
+        io.to(timerId).emit('participant count', { count: rm.timerList[timerId].clients.length });
+      }
     });
   });
 };

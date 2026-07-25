@@ -1,125 +1,49 @@
-# Timer (Socket.IO Sync Timer)
+# Sync Timer
 
-A small Express + Socket.IO server that hosts **shared timers** ("rooms") and broadcasts the current time to everyone connected to the same timer id.
+A polished, lightweight shared stopwatch that stays synchronized across browsers and devices in real time.
 
-This is useful when you want multiple clients (browser tabs, devices, etc.) to see the **same running timer** in real time.
+## Features
 
-## How it works
+- Same-origin Socket.IO synchronization
+- Shareable room URLs
+- Start, pause, reset, rewind, and fast-forward controls
+- Live participant count and connection state
+- Responsive, accessible interface
+- No accounts or database; inactive rooms are removed from memory
+- Hardened non-root Docker deployment
+- Health endpoint at `/healthz`
 
-- The server keeps timers in memory (no database).
-- Clients join a timer room by id via Socket.IO (`set up`).
-- When a timer is running, the server broadcasts `update timer` events to that room.
-- If everyone leaves a timer, it is garbage-collected after ~5 minutes.
+## Run locally
 
-## Requirements
-
-- Node.js (npm)
-
-## Install
-
-```bash
-npm install
-```
-
-## Run
+Requires Node.js 20 or newer.
 
 ```bash
-# default port is 80
+npm ci
+npm test
 npm start
-
-# or override the port
-PORT=4000 npm start
 ```
 
-You should see:
+The app listens on `http://localhost:3000`. Override it with `PORT=4000 npm start`.
 
-```
-🕒  Sync Timer listening on port <PORT>
-```
+## Docker
 
-## HTTP API
-
-Base URL: `http://localhost:<PORT>`
-
-### Create a new timer id
-
-`GET /timer/new`
-
-- Creates a new timer id and redirects to `/timer/:id`.
-
-### Validate / fetch a timer id
-
-`GET /timer/:id`
-
-- If the id exists: returns JSON
-
-```json
-{ "timerId": "<id>" }
+```bash
+docker compose up --build -d
+curl http://127.0.0.1:3000/healthz
 ```
 
-- If the id does not exist: redirects to `/timer/404`.
+The Compose service publishes only to loopback so a reverse proxy can terminate HTTPS safely.
 
-## Socket.IO API
+## Architecture
 
-Socket server is attached to the same HTTP server.
+- `public/` — responsive browser interface
+- `routes/timer.js` — timer lookup and room creation endpoints
+- `middleware/socket.js` — validated Socket.IO room events
+- `models/Timer.js` — stopwatch state and elapsed-time logic
+- `models/RoomManager.js` — in-memory rooms and participant cleanup
 
-### Connect + join a timer
-
-Client emits:
-
-- `set up` (payload: `timerId`)
-
-Server responses/events:
-
-- `done set up` → `{ timerId }`
-- `new user joining` → `{ clientId }` (broadcast to the room)
-- `update timer` → `{ hours, minutes, seconds }`
-- `timer started`
-- `timer stopped`
-- `timer error`
-
-### Timer controls
-
-Client emits (payload: `timerId`):
-
-- `start timer`
-- `stop timer`
-- `reset timer`
-- `rewind timer` (rewinds by 5 seconds)
-- `fastforward timer` (forwards by 5 seconds)
-- `get time`
-
-## Demo client
-
-There is a simple demo page in `timer.html`.
-
-To use it locally:
-
-1. Start the server (example uses port 4000):
-   ```bash
-   PORT=4000 npm start
-   ```
-2. Edit `timer.html` and change the socket URL:
-   - from: `ws://15.184.79.6:4000`
-   - to: `ws://localhost:4000`
-3. Set a timer id (example: `match1`) or create one via `GET /timer/new`.
-4. Open `timer.html` in multiple tabs/devices and press **Start** — they should stay in sync.
-
-## Notes / current behavior
-
-- The timer ticks every ~200ms.
-- The timer **auto-stops after ~5 minutes** (see `models/Timer.js`).
-- Timers are stored in memory only; restarting the server clears them.
-
-## Project structure
-
-- `app.js` → entry point
-- `bin/server.js` → Express + Socket.IO server
-- `routes/timer.js` → HTTP endpoints (`/timer/*`)
-- `middleware/socket.js` → Socket.IO event handlers
-- `models/Timer.js` → timer logic
-- `models/RoomManager.js` → manages timers + connected clients
+Timers are ephemeral. Restarting the process clears them, and rooms with no participants are garbage-collected after approximately five minutes.
 
 ## License
 
-No license specified yet. If you plan to share/redistribute this project, add a license (MIT/Apache-2.0/etc.).
+Copyright © Ali Aljufairi. All rights reserved.

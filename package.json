@@ -1,12 +1,23 @@
 {
+  "name": "sync-timer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A lightweight real-time shared timer powered by Socket.IO.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "module": "^2.0.0",
-    "socket.io": "^4.6.1",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
     "uniqid": "^5.4.0"
   },
-  "scripts": {
-    "start": "node app.js"
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

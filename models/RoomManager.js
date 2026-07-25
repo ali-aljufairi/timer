@@ -116,9 +116,11 @@ class RoomManager {
         logExceptInTest(`User ${clientId} removed from Timer ${timerId}`);
 
         if (this.timerList[timerId].clients.length === 0) {
-          this.timerGCList[timerId] = setInterval(() => {
+          this.timerGCList[timerId] = setTimeout(() => {
             this.deleteTimer(timerId);
+            delete this.timerGCList[timerId];
           }, timerGCDelay);
+          this.timerGCList[timerId].unref?.();
           logExceptInTest(`Mark unused Timer ${timerId} for deletion`);
         }
         

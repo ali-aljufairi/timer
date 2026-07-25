@@ -1,9 +1,8 @@
 node_modules
 npm-debug.log*
-.DS_Store
+.git
+.gitignore
 __MACOSX
-cert.pem
-key.pem
-cert.csr
+.DS_Store
 *.pem
 .env
