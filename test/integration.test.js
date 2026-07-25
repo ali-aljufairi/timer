@@ -3,6 +3,8 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const net = require('node:net');
 const { io: createClient } = require('socket.io-client');
 const createServer = require('../bin/server');
 
@@ -17,6 +19,14 @@ const once = (emitter, event, timeout = 3000) => new Promise((resolve, reject) =
   });
 });
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const getFreePort = () => new Promise((resolve, reject) => {
+  const probe = net.createServer();
+  probe.once('error', reject);
+  probe.listen(0, '127.0.0.1', () => {
+    const { port } = probe.address();
+    probe.close(() => resolve(port));
+  });
+});
 const closeServer = (server) => new Promise((resolve) => server.close(resolve));
 const join = async (client, room) => {
   const ready = once(client, 'done set up');
@@ -166,4 +176,35 @@ test('timer lookup validates capabilities and reveals only existing rooms', asyn
       client.close();
     }
   });
+});
+
+test('SIGTERM disconnects active WebSockets and exits cleanly', async () => {
+  const port = await getFreePort();
+  const child = spawn(process.execPath, ['app.js'], {
+    cwd: require('node:path').join(__dirname, '..'),
+    env: { ...process.env, NODE_ENV: 'production', PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const client = createClient(`http://127.0.0.1:${port}`, {
+    transports: ['websocket'],
+    reconnection: true,
+  });
+  try {
+    await once(client, 'connect', 5000);
+    await join(client, ROOM_A);
+    const disconnected = once(client, 'disconnect', 5000);
+    const exited = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Timed out waiting for clean server exit')), 5000);
+      child.once('exit', (code, signal) => {
+        clearTimeout(timeout);
+        resolve({ code, signal });
+      });
+    });
+    child.kill('SIGTERM');
+    await disconnected;
+    assert.deepEqual(await exited, { code: 0, signal: null });
+  } finally {
+    client.close();
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  }
 });

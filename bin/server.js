@@ -17,7 +17,7 @@ const server = (port, options = {}) => {
     maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
   }));
 
-  require('../middleware/socket')(http, rm);
+  http.io = require('../middleware/socket')(http, rm);
 
   http.listen(port, '0.0.0.0', () => {
     console.log(`Sync Timer listening on port ${port}`);

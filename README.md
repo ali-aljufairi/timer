@@ -9,6 +9,7 @@ A lightweight shared stopwatch that stays synchronized across browsers and devic
 - Server-enforced room membership for every timer mutation
 - One active room per connection with correct switching and disconnect cleanup
 - Bounded rooms, connections, and event rates for public operation
+- Graceful SIGTERM handling closes active Socket.IO clients before exit
 - Start, pause, reset, rewind, and fast-forward controls
 - Live participant count and connection state
 - Responsive, accessible, self-contained interface

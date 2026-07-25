@@ -11,7 +11,9 @@ const server = createServer(port);
 const shutdown = () => {
   const forcedExit = setTimeout(() => process.exit(1), 15_000);
   forcedExit.unref();
-  server.close(() => process.exit(0));
+  const complete = () => process.exit(0);
+  if (server.io) server.io.close(complete);
+  else server.close(complete);
 };
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);

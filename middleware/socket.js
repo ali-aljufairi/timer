@@ -124,4 +124,6 @@ module.exports = (http, roomManager) => {
       }
     });
   });
+
+  return io;
 };
