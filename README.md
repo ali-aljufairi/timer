@@ -1,125 +1,85 @@
-# Timer (Socket.IO Sync Timer)
+# Sync Timer
 
-A small Express + Socket.IO server that hosts **shared timers** ("rooms") and broadcasts the current time to everyone connected to the same timer id.
+A lightweight shared stopwatch that stays synchronized across browsers and devices in real time.
 
-This is useful when you want multiple clients (browser tabs, devices, etc.) to see the **same running timer** in real time.
+## Features
 
-## How it works
+- Same-origin Socket.IO synchronization over WebSocket or HTTP polling
+- Unpredictable 128-bit room capability links; possessing the link grants room access
+- Server-enforced room membership for every timer mutation
+- One active room per connection with correct switching and disconnect cleanup
+- Bounded rooms, connections, and event rates for public operation
+- Graceful SIGTERM handling closes active Socket.IO clients before exit
+- Start, pause, reset, rewind, and fast-forward controls
+- Live participant count and connection state
+- Responsive, accessible, self-contained interface
+- No accounts or database; inactive rooms are removed from memory
+- Hardened non-root container and SIN k3s deployment contract
+- Health endpoint at `/healthz`
 
-- The server keeps timers in memory (no database).
-- Clients join a timer room by id via Socket.IO (`set up`).
-- When a timer is running, the server broadcasts `update timer` events to that room.
-- If everyone leaves a timer, it is garbage-collected after ~5 minutes.
+## Run locally
 
-## Requirements
-
-- Node.js (npm)
-
-## Install
-
-```bash
-npm install
-```
-
-## Run
+Requires Node.js 20 or newer.
 
 ```bash
-# default port is 80
+npm ci
+npm test
 npm start
-
-# or override the port
-PORT=4000 npm start
 ```
 
-You should see:
+The app listens on `http://localhost:3000`. Override it with `PORT=4000 npm start`.
 
-```
-🕒  Sync Timer listening on port <PORT>
-```
+## Container
 
-## HTTP API
-
-Base URL: `http://localhost:<PORT>`
-
-### Create a new timer id
-
-`GET /timer/new`
-
-- Creates a new timer id and redirects to `/timer/:id`.
-
-### Validate / fetch a timer id
-
-`GET /timer/:id`
-
-- If the id exists: returns JSON
-
-```json
-{ "timerId": "<id>" }
+```bash
+docker compose up --build -d
+curl http://127.0.0.1:3000/healthz
 ```
 
-- If the id does not exist: redirects to `/timer/404`.
+Compose publishes only to loopback and is intended for local packaging verification, not production orchestration.
 
-## Socket.IO API
+## SIN k3s deployment
 
-Socket server is attached to the same HTTP server.
+`k8s/sin.yaml` is the production contract for `timer.aljufairi.org`. It defines:
 
-### Connect + join a timer
+- exactly one replica with a `Recreate` rollout because room state is process-local;
+- `/healthz` readiness and liveness probes;
+- CPU/memory requests and limits;
+- non-root, read-only, capability-free runtime with no service-account token;
+- a ClusterIP Service and Traefik Ingress with same-origin `/socket.io/` WebSocket upgrades;
+- Cloudflare DNS-01 TLS through the existing `cloudflare-issuer`;
+- Traefik connection-rate and security-header middleware;
+- a NetworkPolicy permitting inbound application traffic only from Traefik in `kube-system`.
 
-Client emits:
+Build and transfer the immutable image to the single-node cluster, then apply the manifest:
 
-- `set up` (payload: `timerId`)
+```bash
+docker build --pull -t sync-timer:1.0.0 .
+docker save sync-timer:1.0.0 | ssh root@sin 'k3s ctr images import -'
+ssh root@sin 'k3s kubectl apply -f -' < k8s/sin.yaml
+ssh root@sin 'k3s kubectl -n timer rollout status deployment/sync-timer --timeout=120s'
+```
 
-Server responses/events:
+The public Cloudflare DNS record must proxy `timer.aljufairi.org` to SIN before certificate issuance and external verification.
 
-- `done set up` → `{ timerId }`
-- `new user joining` → `{ clientId }` (broadcast to the room)
-- `update timer` → `{ hours, minutes, seconds }`
-- `timer started`
-- `timer stopped`
-- `timer error`
+## Runtime limits
 
-### Timer controls
+- `MAX_ACTIVE_ROOMS` — active in-memory rooms, default `250`
+- `MAX_CONNECTIONS` — simultaneous Socket.IO connections, default `500`
+- control events — 30 per connection per 10 seconds
+- room changes — 8 per connection per minute
 
-Client emits (payload: `timerId`):
+Timers are intentionally ephemeral. Restarting or rescheduling the one replica clears all rooms. Empty rooms are garbage-collected after approximately five minutes.
 
-- `start timer`
-- `stop timer`
-- `reset timer`
-- `rewind timer` (rewinds by 5 seconds)
-- `fastforward timer` (forwards by 5 seconds)
-- `get time`
+## Architecture
 
-## Demo client
-
-There is a simple demo page in `timer.html`.
-
-To use it locally:
-
-1. Start the server (example uses port 4000):
-   ```bash
-   PORT=4000 npm start
-   ```
-2. Edit `timer.html` and change the socket URL:
-   - from: `ws://15.184.79.6:4000`
-   - to: `ws://localhost:4000`
-3. Set a timer id (example: `match1`) or create one via `GET /timer/new`.
-4. Open `timer.html` in multiple tabs/devices and press **Start** — they should stay in sync.
-
-## Notes / current behavior
-
-- The timer ticks every ~200ms.
-- The timer **auto-stops after ~5 minutes** (see `models/Timer.js`).
-- Timers are stored in memory only; restarting the server clears them.
-
-## Project structure
-
-- `app.js` → entry point
-- `bin/server.js` → Express + Socket.IO server
-- `routes/timer.js` → HTTP endpoints (`/timer/*`)
-- `middleware/socket.js` → Socket.IO event handlers
-- `models/Timer.js` → timer logic
-- `models/RoomManager.js` → manages timers + connected clients
+- `public/` — responsive browser interface
+- `routes/timer.js` — capability-token room lookup and validation
+- `middleware/socket.js` — membership authorization, lifecycle, and event-rate enforcement
+- `models/Timer.js` — stopwatch state and elapsed-time logic
+- `models/RoomManager.js` — bounded in-memory rooms and participant cleanup
+- `k8s/sin.yaml` — production k3s, Traefik, TLS, and policy resources
 
 ## License
 
-No license specified yet. If you plan to share/redistribute this project, add a license (MIT/Apache-2.0/etc.).
+Copyright © Ali Aljufairi. All rights reserved.

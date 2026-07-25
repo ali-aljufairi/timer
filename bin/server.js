@@ -1,29 +1,27 @@
 'use strict';
 
 const express = require('express');
-const app = express();
-const http = require('http').Server(app);
+const path = require('path');
 const RoomManager = require('../models/RoomManager');
 
-const cors = require("cors");
+const server = (port, options = {}) => {
+  const app = express();
+  const http = require('http').Server(app);
+  const rm = new RoomManager(options.roomManager);
 
+  app.disable('x-powered-by');
+  app.use('/timer', require('../routes/timer')(rm));
+  app.get('/healthz', (_req, res) => res.status(200).json({ status: 'ok' }));
+  app.use(express.static(path.join(__dirname, '..', 'public'), {
+    extensions: ['html'],
+    maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+  }));
 
+  http.io = require('../middleware/socket')(http, rm);
 
-const server = (port) => {
-
-  const rm = new RoomManager();
-
-  // Routes
-  const timer = require('../routes/timer')(rm);
-  
-  app.use('/timer', timer);
-  app.use(cors());
-  app.use(express.static('public'));
-
-  // Socket
-  const socket = require('../middleware/socket')(http, rm);
-
-  http.listen(port, () => console.log(`🕒  Sync Timer listening on port ${port}`));
+  http.listen(port, '0.0.0.0', () => {
+    console.log(`Sync Timer listening on port ${port}`);
+  });
   return http;
 };
 

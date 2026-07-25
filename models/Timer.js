@@ -49,28 +49,38 @@ class Timer {
     let timeDiffInSeconds = timeDiff / 1000;
     this.hours = Math.floor(timeDiffInSeconds / 3600);
     this.minutes = Math.floor(timeDiffInSeconds / 60) % 60;
-    this.seconds = Math.floor(timeDiffInSeconds);
+    this.seconds = Math.floor(timeDiffInSeconds) % 60;
 
     if (this.updateCallback) {
       this.updateCallback(this);
     }
-    if (this.hours === 0 && this.minutes >= 5) {
-      this.stopTimer();
-    }
   }
 
-  // make a rewind function that rwinds the timer by 5 seconds
   rewindTimer() {
+    const delta = 5000;
     if (this.timerRunning === TIMERSTATE.RUNNING) {
-      this.startTime -= 5000;
+      this.startTime += delta;
+    } else {
+      this.elapsedTime = Math.max(0, this.elapsedTime - delta);
+      this.updateFromElapsed();
     }
   }
 
-// make a forward function that forwards the timer by 5 seconds
   forwardTimer() {
+    const delta = 5000;
     if (this.timerRunning === TIMERSTATE.RUNNING) {
-      this.startTime += 5000;
+      this.startTime -= delta;
+    } else {
+      this.elapsedTime += delta;
+      this.updateFromElapsed();
     }
+  }
+
+  updateFromElapsed() {
+    const totalSeconds = Math.floor(this.elapsedTime / 1000);
+    this.hours = Math.floor(totalSeconds / 3600);
+    this.minutes = Math.floor(totalSeconds / 60) % 60;
+    this.seconds = totalSeconds % 60;
   }
 
 
