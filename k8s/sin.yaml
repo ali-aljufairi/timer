@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: timer
-          image: analytics-timer:d921f07
+          image: analytics-timer:a96922f
           imagePullPolicy: Never
           env:
             - name: NODE_ENV
