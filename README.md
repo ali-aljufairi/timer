@@ -1,5 +1,9 @@
 # Sync Timer
 
+Live site: https://timer.aljufairi.org
+
+`public/index.html` loads the pageview-only collector `https://metrics.aljufairi.org/script.js` with a public website ID. Queries/fragments (including room capabilities), titles, custom events and referrer paths are not collected. No cookies/storage or replay is enabled; Do Not Track is respected. The analytics dashboard requires Tailscale and a separate login: https://sin.koi-procyon.ts.net:9443.
+
 A lightweight shared stopwatch that stays synchronized across browsers and devices in real time.
 
 ## Features
