@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: browser-actions/setup-chrome@f8d944ae5831a91098ac08045d8ba3c098cac9a7 # setup-chrome-v1.7.3
+      - uses: browser-actions/setup-chrome@54e7c7bf1c147ffca98dc47b796907454c8c1787 # v2.2.0
       - run: npm ci
       - run: npm test
       - name: Exercise timer UI in two real browser clients
