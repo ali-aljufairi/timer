@@ -50,6 +50,32 @@ const connect = async (url) => {
   return client;
 };
 
+test('served website exposes the room-entry and timer controls used by the client', async () => {
+  await withServer(async (url) => {
+    const page = await fetch(url);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    for (const contract of [
+      'id="welcome-panel"',
+      'id="room-input"',
+      'id="join-button"',
+      'id="new-room-button"',
+      'id="timer-panel"',
+      'id="start-button"',
+      'id="reset-button"',
+      'id="participant-count"',
+      'src="/app.js"',
+      'href="/styles.css"',
+    ]) assert.ok(html.includes(contract), `served page is missing ${contract}`);
+
+    for (const asset of ['/app.js', '/styles.css', '/favicon.svg']) {
+      const response = await fetch(new URL(asset, url));
+      assert.equal(response.status, 200, `${asset} should be served`);
+      assert.ok((await response.text()).length > 0, `${asset} should not be empty`);
+    }
+  });
+});
+
 test('two joined clients receive the same shared timer updates', async () => {
   await withServer(async (url) => {
     const first = await connect(url);
