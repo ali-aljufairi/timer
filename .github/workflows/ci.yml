@@ -11,7 +11,7 @@ concurrency:
 jobs:
   node-tests:
     name: timer node and Socket.IO regressions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -19,7 +19,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: browser-actions/setup-chrome@54e7c7bf1c147ffca98dc47b796907454c8c1787 # v2.2.0
+      - name: Use the runner-provided Chrome and matching ChromeDriver
+        run: |
+          echo "$CHROMEWEBDRIVER" >> "$GITHUB_PATH"
+          google-chrome --version
+          chromedriver --version
       - run: npm ci
       - run: npm test
       - name: Exercise timer UI in two real browser clients
