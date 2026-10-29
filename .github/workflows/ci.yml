@@ -19,5 +19,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: browser-actions/setup-chrome@9ffc9ce4183e2bb421a52b1ebd1860eeabce138e # setup-chrome-v1.7.3
       - run: npm ci
       - run: npm test
+      - name: Exercise timer UI in two real browser clients
+        run: npm run test:browser
+      - name: Preserve browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: timer-browser-failure-${{ github.run_id }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
